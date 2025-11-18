@@ -30,7 +30,11 @@
 - Node.js 18+ 
 - npm 또는 yarn
 - Supabase 계정
-- Alpha Vantage API 키
+- Alpha Vantage API 키 (선택적, 데이터 동기화용)
+
+### 빠른 시작
+
+자세한 설정 가이드는 [QUICKSTART.md](./QUICKSTART.md)를 참고하세요.
 
 ### 설치
 
@@ -57,7 +61,7 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
-# Alpha Vantage API
+# Alpha Vantage API (선택적)
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key
 
 # App Configuration
@@ -66,14 +70,23 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ### Supabase 설정
 
-1. Supabase 프로젝트 생성
-2. SQL Editor에서 `supabase/schema.sql` 파일의 내용을 실행하여 테이블 생성
-3. Row Level Security (RLS) 정책이 자동으로 설정됩니다
+**상세한 설정 가이드**: [supabase/SETUP.md](./supabase/SETUP.md)
+
+**빠른 설정**:
+1. [Supabase](https://supabase.com)에서 프로젝트 생성
+2. SQL Editor에서 `supabase/schema.sql` 파일의 내용 실행
+3. Settings → API에서 API 키 확인
+4. `.env.local` 파일에 API 키 설정
+
+**설정 체크리스트**: [supabase/CHECKLIST.md](./supabase/CHECKLIST.md)
+
+**연결 테스트**: 개발 서버 실행 후 `/api/test/connection` 접속
 
 ### Alpha Vantage API 키 발급
 
 1. [Alpha Vantage](https://www.alphavantage.co/support/#api-key)에서 무료 API 키 발급
 2. 무료 플랜 제한사항: 5 calls/minute, 500 calls/day
+3. `.env.local` 파일에 `ALPHA_VANTAGE_API_KEY` 추가
 
 ### 개발 서버 실행
 
@@ -179,17 +192,52 @@ Alpha Vantage API에서 데이터 동기화
 
 ### Vercel 배포
 
-1. Vercel에 프로젝트 연결
-2. 환경 변수 설정
-3. 자동 배포 완료
+**상세한 배포 가이드**: [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+#### 빠른 배포 단계
+
+1. **Vercel 계정 생성 및 로그인**
+   - [Vercel](https://vercel.com) 접속
+   - GitHub 계정으로 로그인
+
+2. **프로젝트 import**
+   - "Add New..." → "Project" 클릭
+   - GitHub 저장소 선택
+   - Next.js 프레임워크 자동 감지
+
+3. **환경 변수 설정**
+   - 프로젝트 설정 → "Environment Variables"
+   - 다음 환경 변수 추가:
+     - `NEXT_PUBLIC_SUPABASE_URL`
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+     - `SUPABASE_SERVICE_ROLE_KEY`
+     - `ALPHA_VANTAGE_API_KEY` (선택적)
+
+4. **배포**
+   - "Deploy" 버튼 클릭
+   - 배포 완료 대기 (약 2-3분)
+
+5. **배포 확인**
+   - 제공된 URL에서 사이트 확인
+   - `/api/test/connection`에서 연결 테스트
 
 ### 환경 변수 설정 (Vercel)
 
 Vercel 대시보드에서 다음 환경 변수를 설정하세요:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `ALPHA_VANTAGE_API_KEY`
+
+| 변수 이름 | 설명 | 필수 |
+|---------|------|------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key | ✅ |
+| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage API 키 | ❌ |
+| `NEXT_PUBLIC_APP_URL` | 애플리케이션 URL | ❌ |
+
+### 자동 배포
+
+- **Production**: `main` 또는 `master` 브랜치에 푸시 시 자동 배포
+- **Preview**: 다른 브랜치에 푸시 시 Preview 배포
+- **Pull Request**: PR 생성 시 자동 Preview 배포
 
 ## 주의사항
 

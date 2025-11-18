@@ -1,48 +1,50 @@
 import axios from 'axios';
-import type { AlphaVantageResponse, StockPrice, TimeSeriesData } from '@/types/stock';
+import type { AlphaVantageResponse, StockPrice } from '@/types/stock';
 
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
+const API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 const BASE_URL = 'https://www.alphavantage.co/query';
 
-if (!ALPHA_VANTAGE_API_KEY) {
-  console.warn('ALPHA_VANTAGE_API_KEY is not set. Alpha Vantage API will not work.');
+if (!API_KEY) {
+  console.warn('⚠️ ALPHA_VANTAGE_API_KEY is not set. Alpha Vantage API will not work.');
 }
 
 /**
- * Fetch daily adjusted stock data from Alpha Vantage
+ * Fetch daily stock price history (free tier compatible)
  */
 export async function fetchDailyAdjustedStockData(
   symbol: string = 'TSLA'
 ): Promise<StockPrice[]> {
-  if (!ALPHA_VANTAGE_API_KEY) {
-    throw new Error('ALPHA_VANTAGE_API_KEY is not configured');
+  if (!API_KEY) {
+    throw new Error('MISSING_API_KEY');
   }
 
   try {
     const response = await axios.get<AlphaVantageResponse>(BASE_URL, {
       params: {
-        function: 'TIME_SERIES_DAILY_ADJUSTED',
+        function: 'TIME_SERIES_DAILY', // free tier only (no adjusted close field!)
         symbol,
-        apikey: ALPHA_VANTAGE_API_KEY,
-        outputsize: 'full',
+        apikey: API_KEY,
+        outputsize: 'compact',
       },
     });
 
-    if (response.data.Note) {
-      throw new Error('API call frequency limit reached. Please try again later.');
+    // Rate limit / quota
+    if (response.data.Note || response.data.Information) {
+      throw new Error('RATE_LIMIT');
     }
 
+    // API format error
     if (response.data['Error Message']) {
-      throw new Error(response.data['Error Message']);
+      throw new Error('INVALID_SYMBOL');
     }
 
-    const timeSeries = response.data['Time Series (Daily Adjusted)'];
+    const timeSeries = response.data['Time Series (Daily)'];
     if (!timeSeries) {
-      throw new Error('No time series data found in response');
+      throw new Error('NO_DATA');
     }
 
     const stockPrices: StockPrice[] = Object.entries(timeSeries).map(
-      ([date, data]) => ({
+      ([date, data]: any) => ({
         symbol,
         date,
         open: parseFloat(data['1. open']),
@@ -50,26 +52,25 @@ export async function fetchDailyAdjustedStockData(
         low: parseFloat(data['3. low']),
         close: parseFloat(data['4. close']),
         volume: parseInt(data['5. volume'], 10),
-        adjusted_close: parseFloat(data['5. adjusted close'] || data['4. close']),
+        adjusted_close: parseFloat(data['4. close']), // free tier has no adjusted close → use close
       })
     );
 
-    // Sort by date ascending
     return stockPrices.sort((a, b) => a.date.localeCompare(b.date));
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(`Alpha Vantage API error: ${error.message}`);
+      throw new Error(`AXIOS_ERROR`);
     }
     throw error;
   }
 }
 
 /**
- * Fetch current stock quote from Alpha Vantage
+ * Fetch real-time stock quote
  */
 export async function fetchStockQuote(symbol: string = 'TSLA') {
-  if (!ALPHA_VANTAGE_API_KEY) {
-    throw new Error('ALPHA_VANTAGE_API_KEY is not configured');
+  if (!API_KEY) {
+    throw new Error('MISSING_API_KEY');
   }
 
   try {
@@ -77,46 +78,47 @@ export async function fetchStockQuote(symbol: string = 'TSLA') {
       params: {
         function: 'GLOBAL_QUOTE',
         symbol,
-        apikey: ALPHA_VANTAGE_API_KEY,
+        apikey: API_KEY,
       },
     });
 
-    if (response.data.Note) {
-      throw new Error('API call frequency limit reached. Please try again later.');
+    if (response.data.Note || response.data.Information) {
+      throw new Error('RATE_LIMIT');
     }
 
     if (response.data['Error Message']) {
-      throw new Error(response.data['Error Message']);
+      throw new Error('INVALID_SYMBOL');
     }
 
-    const globalQuote = response.data['Global Quote'];
-    if (!globalQuote) {
-      throw new Error('No quote data found in response');
+    const q = response.data['Global Quote'];
+    if (!q) {
+      throw new Error('NO_DATA');
     }
 
     return {
-      symbol: globalQuote['01. symbol'],
-      open: globalQuote['02. open'],
-      high: globalQuote['03. high'],
-      low: globalQuote['04. low'],
-      price: globalQuote['05. price'],
-      volume: globalQuote['06. volume'],
-      latestTradingDay: globalQuote['07. latest trading day'],
-      previousClose: globalQuote['08. previous close'],
-      change: globalQuote['09. change'],
-      changePercent: globalQuote['10. change percent'],
+      symbol: q['01. symbol'],
+      open: q['02. open'],
+      high: q['03. high'],
+      low: q['04. low'],
+      price: q['05. price'],
+      volume: q['06. volume'],
+      latestTradingDay: q['07. latest trading day'],
+      previousClose: q['08. previous close'],
+      change: q['09. change'],
+      changePercent: q['10. change percent'],
     };
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(`Alpha Vantage API error: ${error.message}`);
+      throw new Error(`AXIOS_ERROR`);
     }
     throw error;
   }
 }
 
-/**
- * Calculate Simple Moving Average (SMA)
- */
+/* ───────────────────────────────
+   Technical Indicators
+────────────────────────────── */
+
 export function calculateSMA(prices: number[], period: number): number[] {
   const sma: number[] = [];
   for (let i = 0; i < prices.length; i++) {
@@ -130,9 +132,6 @@ export function calculateSMA(prices: number[], period: number): number[] {
   return sma;
 }
 
-/**
- * Calculate Exponential Moving Average (EMA)
- */
 export function calculateEMA(prices: number[], period: number): number[] {
   const ema: number[] = [];
   const multiplier = 2 / (period + 1);
@@ -147,9 +146,6 @@ export function calculateEMA(prices: number[], period: number): number[] {
   return ema;
 }
 
-/**
- * Calculate RSI (Relative Strength Index)
- */
 export function calculateRSI(prices: number[], period: number = 14): number[] {
   const rsi: number[] = [];
   const gains: number[] = [];
@@ -176,13 +172,9 @@ export function calculateRSI(prices: number[], period: number = 14): number[] {
       }
     }
   }
-
   return rsi;
 }
 
-/**
- * Calculate MACD (Moving Average Convergence Divergence)
- */
 export function calculateMACD(
   prices: number[],
   fastPeriod: number = 12,
@@ -195,7 +187,6 @@ export function calculateMACD(
   const macd = ema12.map((value, index) => value - ema26[index]);
   const signal = calculateEMA(macd.filter((v) => !isNaN(v)), signalPeriod);
 
-  // Align signal array with MACD array
   const alignedSignal: number[] = [];
   const macdValidStart = macd.findIndex((v) => !isNaN(v));
   for (let i = 0; i < macd.length; i++) {
@@ -211,9 +202,6 @@ export function calculateMACD(
   return { macd, signal: alignedSignal, histogram };
 }
 
-/**
- * Calculate Bollinger Bands
- */
 export function calculateBollingerBands(
   prices: number[],
   period: number = 20,
@@ -242,4 +230,3 @@ export function calculateBollingerBands(
 
   return { upper, middle, lower };
 }
-
